@@ -2,6 +2,7 @@ import logging
 import gspread
 import os
 import time
+import json
 from oauth2client.service_account import ServiceAccountCredentials
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, CallbackContext
@@ -11,9 +12,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 # Setup Google Sheet
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials = ServiceAccountCredentials.from_json_keyfile_name('telegrambotsheet-458111-ca6d407feea5.json', scope)
+credentials_info = json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON"))  # Ambil dari environment variable
+credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_info, scope)
 client = gspread.authorize(credentials)
-sheet = client.open_by_url('https://docs.google.com/spreadsheets/d/1-Rx-05zZ-Yj9znsuKPq827uXPZBflOfsSbBmpzNK2TY/edit#gid=0')
+sheet = client.open_by_url('https://docs.google.com/spreadsheets/d/1-Rx-05zZ-Yj9znsuKPz827uXPZBflOfsSbBmpzNK2TY/edit#gid=0')
 worksheet = sheet.sheet1
 
 # Telegram Token
