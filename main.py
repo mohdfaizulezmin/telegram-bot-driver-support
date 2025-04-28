@@ -1,90 +1,111 @@
-import logging
-import gspread
 import os
 import time
 import json
-from oauth2client.service_account import ServiceAccountCredentials
+import logging
+import requests
+from google.oauth2 import service_account
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, CallbackContext
 
 # Setup logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# Setup Google Sheet
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials_info = json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON"))  # Ambil dari environment variable
-credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_info, scope)
-client = gspread.authorize(credentials)
-sheet = client.open_by_key('1-Rx-05zZ-Yj9znsuKPz827uXPZBflOfsSbBmpzNK2TY')
-worksheet = sheet.sheet1
+# Google Sheets setup
+SPREADSHEET_ID = '1-Rx-05zZ-Yj9znsuKPz827uXPZBflOfsSbBmpzNK2TY'
+SHEET_NAME = 'Sheet1'
+GOOGLE_CREDENTIALS = json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON"))
 
 # Telegram Token
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-# Simpan session user
-user_session = {}  # {user_id: (session_active:bool, last_active_time:int)}
+# Session user
+user_session = {}
 
-# Fungsi untuk check perlu reply atau tidak
+# Create access token
+def get_access_token():
+    credentials = service_account.Credentials.from_service_account_info(
+        GOOGLE_CREDENTIALS,
+        scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    )
+    access_token = credentials.token
+    if not access_token or credentials.expired:
+        credentials.refresh(requests.Request())
+        access_token = credentials.token
+    return access_token
+
+# Fetch data from Google Sheet
+def fetch_sheet_data():
+    token = get_access_token()
+    url = f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{SHEET_NAME}?alt=json"
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    data = response.json()
+
+    records = []
+    values = data.get('values', [])
+    headers_row = values[0] if values else []
+
+    for row in values[1:]:
+        record = {headers_row[i]: row[i] if i < len(row) else "" for i in range(len(headers_row))}
+        records.append(record)
+
+    return records
+
+# Check need reply
 def should_reply(update):
     user_id = update.message.from_user.id
     text = update.message.text.lower() if update.message.text else ""
     current_time = time.time()
 
-    # Auto-reset session jika lebih 5 minit tak aktif
     if user_id in user_session:
         session_active, last_active = user_session[user_id]
-        if current_time - last_active > 300:  # 300 saat = 5 minit
+        if current_time - last_active > 300:
             user_session[user_id] = (False, current_time)
             session_active = False
     else:
         session_active = False
 
-    # Kalau user ada session aktif
     if session_active:
-        # Check kalau user nak stop
         if any(stop in text for stop in ["bye", "tq", "thank you", "terima kasih"]):
             user_session[user_id] = (False, current_time)
             return False
-        user_session[user_id] = (True, current_time)  # Update masa aktif
+        user_session[user_id] = (True, current_time)
         return True
 
-    # Kalau mesej teks ada salam atau nama bot
     if '@airasiaride_bot' in text or any(greet in text for greet in ["assalamualaikum", "salam", "hi", "hello"]):
         user_session[user_id] = (True, current_time)
         return True
 
-    # Kalau mesej adalah sticker atau emoji thumbs up 👍
     if update.message.sticker or (update.message.text and "👍" in update.message.text):
         user_session[user_id] = (True, current_time)
         return True
 
-    return False  # Kalau bukan, jangan reply
+    return False
 
-# Fungsi bila ada mesej
+# Handle incoming message
 async def handle_message(update: Update, context: CallbackContext):
     if not should_reply(update):
         return
 
     text = update.message.text.lower() if update.message.text else ""
-
-    # Baca semua rekod dari sheet
-    records = worksheet.get_all_records()
+    records = fetch_sheet_data()
     replies = []
 
     for record in records:
-        keyword = record['Keyword'].lower()
-        jawapan = record['Jawapan']
+        keyword = record.get('Keyword', '').lower()
+        jawapan = record.get('Jawapan', '')
 
         if keyword in text:
             replies.append(jawapan)
 
     if replies:
-        combined_reply = "\n\n".join(replies)  # Combine semua jawapan dengan newline antara setiap reply
+        combined_reply = "\n\n".join(replies)
         await update.message.reply_text(combined_reply)
     else:
         await update.message.reply_text("...")
 
-# Run bot
+# Main
 def main():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(MessageHandler(filters.ALL, handle_message))
