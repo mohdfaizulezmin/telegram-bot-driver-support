@@ -17,7 +17,7 @@ sheet = client.open_by_url('https://docs.google.com/spreadsheets/d/1-Rx-05zZ-Yj9
 worksheet = sheet.sheet1
 
 # Telegram Token
-TELEGRAM_TOKEN = '8136574407:AAHIvRwJSGDvkfGS-rtmJYeHMk08AqfwjiA'
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 # Simpan session user
 user_session = {}  # {user_id: (session_active:bool, last_active_time:int)}
