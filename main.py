@@ -1,46 +1,17 @@
 import logging
 import os
 import time
-import json
+import csv
 import requests
-from google.oauth2 import service_account
-from google.auth.transport.requests import Request
+from io import StringIO
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, CallbackContext
 
 # Setup logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# Setup Google Sheet
-GOOGLE_CREDENTIALS = json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON"))
-SPREADSHEET_ID = "1-Rx-05zZ-Yj9znsuKPz827uXPZBflOfsSbBmpzNK2TY"
-SHEET_NAME = "Sheet1"
-
-def get_access_token():
-    credentials = service_account.Credentials.from_service_account_info(
-        GOOGLE_CREDENTIALS,
-        scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
-    )
-    if not credentials.valid or credentials.expired:
-        credentials.refresh(Request())
-    return credentials.token
-
-def get_sheet_data():
-    access_token = get_access_token()
-    url = f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{SHEET_NAME}"
-    headers = {
-        "Authorization": f"Bearer {access_token}"
-    }
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Failed to fetch sheet data: {response.text}")
-    data = response.json()
-    values = data.get("values", [])
-    if not values:
-        return []
-    headers = values[0]
-    records = [dict(zip(headers, row)) for row in values[1:]]
-    return records
+# Setup Google Sheet (Published CSV link)
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSKd5gh5iOzsGtoFglkdqZ6WDah1dbYWYffNvRolpdvSF-UJ9EEB2HaT7EYSqv0l_k2wrlJRhpivOyO/pub?output=csv"
 
 # Telegram Token
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -77,6 +48,16 @@ def should_reply(update):
         return True
 
     return False
+
+def get_sheet_data():
+    response = requests.get(CSV_URL)
+    if response.status_code != 200:
+        raise Exception(f"Failed to fetch sheet data: {response.text}")
+    csv_data = response.content.decode('utf-8')
+    f = StringIO(csv_data)
+    reader = csv.DictReader(f)
+    records = list(reader)
+    return records
 
 # Fungsi bila ada mesej
 async def handle_message(update: Update, context: CallbackContext):
