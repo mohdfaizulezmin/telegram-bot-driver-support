@@ -75,3 +75,44 @@ def should_reply(update):
     if update.message.sticker or (update.message.text and "👍" in update.message.text):
         user_session[user_id] = (True, current_time)
         return True
+
+    return False
+
+# Fungsi bila ada mesej
+async def handle_message(update: Update, context: CallbackContext):
+    try:
+        if not should_reply(update):
+            return
+
+        text = update.message.text.lower() if update.message.text else ""
+        print(f"[DEBUG] Incoming Message: {text}")
+
+        records = get_sheet_data()
+        replies = []
+
+        for record in records:
+            keyword = record.get('Keyword', '').lower()
+            jawapan = record.get('Jawapan', '')
+
+            if keyword and keyword in text:
+                replies.append(jawapan)
+
+        if replies:
+            combined_reply = "\n\n".join(replies)
+            await update.message.reply_text(combined_reply)
+        else:
+            await update.message.reply_text("...")
+
+    except Exception as e:
+        print(f"[ERROR] {str(e)}")
+        await update.message.reply_text("Maaf, ada masalah teknikal.")
+
+# Run bot
+def main():
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(MessageHandler(filters.ALL, handle_message))
+    print("🤖 Bot sudah mula jalan...")
+    app.run_polling(stop_signals=None)
+
+if __name__ == '__main__':
+    main()
