@@ -1,58 +1,53 @@
+import logging
 import os
 import time
 import json
-import logging
 import requests
 from google.oauth2 import service_account
+from google.auth.transport.requests import Request
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, CallbackContext
 
 # Setup logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# Google Sheets setup
-SPREADSHEET_ID = '1-Rx-05zZ-Yj9znsuKPz827uXPZBflOfsSbBmpzNK2TY'
-SHEET_NAME = 'Sheet1'
+# Setup Google Sheet
 GOOGLE_CREDENTIALS = json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON"))
+SPREADSHEET_ID = "1-Rx-05zZ-Yj9znsuKPz827uXPZBflOfsSbBmpzNK2TY"
+SHEET_NAME = "Sheet1"
 
-# Telegram Token
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-
-# Session user
-user_session = {}
-
-# Create access token
 def get_access_token():
     credentials = service_account.Credentials.from_service_account_info(
         GOOGLE_CREDENTIALS,
         scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
     )
-    access_token = credentials.token
-    if not access_token or credentials.expired:
-        credentials.refresh(requests.Request())
-        access_token = credentials.token
-    return access_token
+    if not credentials.valid or credentials.expired:
+        credentials.refresh(Request())
+    return credentials.token
 
-# Fetch data from Google Sheet
-def fetch_sheet_data():
-    token = get_access_token()
-    url = f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{SHEET_NAME}?alt=json"
-    headers = {"Authorization": f"Bearer {token}"}
+def get_sheet_data():
+    access_token = get_access_token()
+    url = f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{SHEET_NAME}"
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
     response = requests.get(url, headers=headers)
-    response.raise_for_status()
+    if response.status_code != 200:
+        raise Exception(f"Failed to fetch sheet data: {response.text}")
     data = response.json()
-
-    records = []
-    values = data.get('values', [])
-    headers_row = values[0] if values else []
-
-    for row in values[1:]:
-        record = {headers_row[i]: row[i] if i < len(row) else "" for i in range(len(headers_row))}
-        records.append(record)
-
+    values = data.get("values", [])
+    if not values:
+        return []
+    headers = values[0]
+    records = [dict(zip(headers, row)) for row in values[1:]]
     return records
 
-# Check need reply
+# Telegram Token
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+
+# Simpan session user
+user_session = {}  # {user_id: (session_active:bool, last_active_time:int)}
+
 def should_reply(update):
     user_id = update.message.from_user.id
     text = update.message.text.lower() if update.message.text else ""
@@ -73,55 +68,10 @@ def should_reply(update):
         user_session[user_id] = (True, current_time)
         return True
 
-    if '@airasiaride_bot' in text or any(greet in text for greet in ["assalamualaikum", "salam", "selamat pagi", "good morning", "hi", "hello"]):
+    if '@airasiaride_bot' in text or any(greet in text for greet in ["assalamualaikum", "salam", "hi", "hello"]):
         user_session[user_id] = (True, current_time)
         return True
 
     if update.message.sticker or (update.message.text and "👍" in update.message.text):
         user_session[user_id] = (True, current_time)
         return True
-
-    return False
-
-# Handle incoming message
-async def handle_message(update: Update, context: CallbackContext):
-    if not should_reply(update):
-        return
-
-    text = update.message.text.lower() if update.message.text else ""
-    print(f"[DEBUG] Incoming Message: {text}")  # <--- Debug
-
-    try:
-        records = fetch_sheet_data()
-        print(f"[DEBUG] Records Fetched: {len(records)} keywords")  # <--- Debug
-
-        replies = []
-        for record in records:
-            keyword = record.get('Keyword', '').lower()
-            jawapan = record.get('Jawapan', '')
-            print(f"[DEBUG] Checking keyword: {keyword}")  # <--- Debug
-
-            if keyword in text:
-                replies.append(jawapan)
-
-        if replies:
-            combined_reply = "\n\n".join(replies)
-            await update.message.reply_text(combined_reply)
-            print(f"[DEBUG] Reply sent: {combined_reply}")  # <--- Debug
-        else:
-            await update.message.reply_text("...")
-            print(f"[DEBUG] No matching keyword. Sent '...'")  # <--- Debug
-
-    except Exception as e:
-        print(f"[ERROR] {str(e)}")
-        await update.message.reply_text("Maaf, ada masalah teknikal.")
-
-# Main
-def main():
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(MessageHandler(filters.ALL, handle_message))
-    print("🤖 Bot sudah mula jalan...")
-    app.run_polling(stop_signals=None)
-
-if __name__ == '__main__':
-    main()
