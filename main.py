@@ -11,7 +11,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 # Setup Google Sheet
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials = ServiceAccountCredentials.from_json_keyfile_name('telegrambotsheet-458111-e9a14ac0134c.json', scope)
+credentials = ServiceAccountCredentials.from_json_keyfile_name('telegrambotsheet-458111-ca6d407feea5.json', scope)
 client = gspread.authorize(credentials)
 sheet = client.open_by_url('https://docs.google.com/spreadsheets/d/1-Rx-05zZ-Yj9znsuKPq827uXPZBflOfsSbBmpzNK2TY/edit#gid=0')
 worksheet = sheet.sheet1
