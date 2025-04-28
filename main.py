@@ -73,7 +73,7 @@ def should_reply(update):
         user_session[user_id] = (True, current_time)
         return True
 
-    if '@airasiaride_bot' in text or any(greet in text for greet in ["assalamualaikum", "salam", "hi", "hello"]):
+    if '@airasiaride_bot' in text or any(greet in text for greet in ["assalamualaikum", "salam", "selamat pagi", "good morning", "hi", "hello"]):
         user_session[user_id] = (True, current_time)
         return True
 
@@ -89,21 +89,32 @@ async def handle_message(update: Update, context: CallbackContext):
         return
 
     text = update.message.text.lower() if update.message.text else ""
-    records = fetch_sheet_data()
-    replies = []
+    print(f"[DEBUG] Incoming Message: {text}")  # <--- Debug
 
-    for record in records:
-        keyword = record.get('Keyword', '').lower()
-        jawapan = record.get('Jawapan', '')
+    try:
+        records = fetch_sheet_data()
+        print(f"[DEBUG] Records Fetched: {len(records)} keywords")  # <--- Debug
 
-        if keyword in text:
-            replies.append(jawapan)
+        replies = []
+        for record in records:
+            keyword = record.get('Keyword', '').lower()
+            jawapan = record.get('Jawapan', '')
+            print(f"[DEBUG] Checking keyword: {keyword}")  # <--- Debug
 
-    if replies:
-        combined_reply = "\n\n".join(replies)
-        await update.message.reply_text(combined_reply)
-    else:
-        await update.message.reply_text("...")
+            if keyword in text:
+                replies.append(jawapan)
+
+        if replies:
+            combined_reply = "\n\n".join(replies)
+            await update.message.reply_text(combined_reply)
+            print(f"[DEBUG] Reply sent: {combined_reply}")  # <--- Debug
+        else:
+            await update.message.reply_text("...")
+            print(f"[DEBUG] No matching keyword. Sent '...'")  # <--- Debug
+
+    except Exception as e:
+        print(f"[ERROR] {str(e)}")
+        await update.message.reply_text("Maaf, ada masalah teknikal.")
 
 # Main
 def main():
