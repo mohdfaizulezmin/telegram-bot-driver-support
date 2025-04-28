@@ -15,7 +15,7 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 credentials_info = json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON"))  # Ambil dari environment variable
 credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_info, scope)
 client = gspread.authorize(credentials)
-sheet = client.open_by_url('https://docs.google.com/spreadsheets/d/1-Rx-05zZ-Yj9znsuKPz827uXPZBflOfsSbBmpzNK2TY/edit#gid=0')
+sheet = client.open_by_url('https://docs.google.com/spreadsheets/d/1-Rx-05zZ-Yj9znsuKPz827uXPZBflOfsSbBmpzNK2TY')
 worksheet = sheet.sheet1
 
 # Telegram Token
